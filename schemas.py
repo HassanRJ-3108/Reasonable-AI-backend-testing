@@ -54,8 +54,9 @@ class ModelInfo(BaseModel):
 # Chat schemas
 class MessageCreate(BaseModel):
     content: str
-    image_url: Optional[str] = None
+    image_data: Optional[str] = None  # Base64 encoded image data
 
+# Make sure ReasoningStepResponse is defined before it's used
 class ReasoningStepResponse(BaseModel):
     id: str  # Changed from UUID4 to str for simplicity
     step_number: int
@@ -100,6 +101,14 @@ class ConversationListResponse(BaseModel):
 
     class Config:
         orm_mode = True
+
+# Streaming response schemas
+class ThinkingStepUpdate(BaseModel):
+    message_id: str
+    step_number: int
+    content: str
+    type: str
+    is_complete: bool = False
 
 # Image schemas
 class ImageUploadResponse(BaseModel):

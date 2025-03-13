@@ -3,7 +3,6 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 import os
 import uuid
-import google.generativeai as genai
 from PIL import Image
 import io
 from dotenv import load_dotenv
@@ -12,6 +11,9 @@ from database import get_db
 from models import User
 from schemas import ImageUploadResponse
 from auth import get_current_user
+
+# Import the image processor
+from ai.image_processor import ImageProcessor
 
 # Load environment variables
 load_dotenv()
@@ -25,8 +27,11 @@ router = APIRouter(
 
 # Configure Gemini API
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+# Initialize image processor if API key is available
+image_processor = None
 if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
+    image_processor = ImageProcessor(GEMINI_API_KEY, model_name="gemini-2.0-flash")
 
 # Create uploads directory if it doesn't exist
 os.makedirs("uploads", exist_ok=True)
@@ -71,6 +76,11 @@ async def analyze_image(
             detail="Gemini API key not configured"
         )
     
+    # Initialize image processor if not already initialized
+    global image_processor
+    if image_processor is None:
+        image_processor = ImageProcessor(GEMINI_API_KEY, model_name="gemini-2.0-flash")
+    
     # Check if file is an image
     if not file.content_type.startswith("image/"):
         raise HTTPException(
@@ -81,15 +91,18 @@ async def analyze_image(
     try:
         # Read image
         image_content = await file.read()
-        image = Image.open(io.BytesIO(image_content))
         
-        # Configure Gemini model that supports images (gemini-pro-vision)
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        # Process image using the image processor
+        config = {
+            "temperature": 1.0,
+            "top_p": 0.95,
+            "top_k": 64,
+            "max_output_tokens": 8192
+        }
         
-        # Generate content
-        response = model.generate_content([prompt, image])
+        analysis = image_processor.analyze_image(image_content, prompt, config)
         
-        return {"analysis": response.text}
+        return {"analysis": analysis}
         
     except Exception as e:
         raise HTTPException(
